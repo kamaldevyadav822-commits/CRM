@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"></script>
+<title>CRM Pro</title>
+
+<style>
+.glass{background:rgba(255,255,255,0.6);backdrop-filter:blur(20px);}
+*{transition:all 0.25s ease;}
+.card-gradient{border-radius:16px;padding:1px;background:linear-gradient(135deg,#a855f7,#22c55e);}
+.card-inner{border-radius:15px;background:white;padding:16px;}
+.tab{padding:8px 12px;border-radius:12px;background:#eee;font-size:13px;}
+.tab.active{background:#3b82f6;color:#fff;}
+</style>
+</head>
+
+<body class="bg-gray-100">
+
+<div class="flex justify-between items-center p-3 glass">
+  <h1>CRM Pro</h1>
+  <button onclick="logout()" class="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
+</div>
+
+<div class="flex gap-2 p-2">
+  <button class="tab active" data-tab="new">New</button>
+  <button class="tab" data-tab="called">Called</button>
+  <button class="tab" data-tab="not_answered">No Answer</button>
+  <button class="tab" data-tab="closed">Closed</button>
+</div>
+
+<div class="p-3">
+  <input id="phoneInput" placeholder="Enter phone"
+   class="w-full p-3 border rounded mb-2">
+  <button onclick="addContact()" class="bg-green-500 text-white px-4 py-2 rounded">
+    Add Contact
+  </button>
+</div>
+
+<div id="list" class="p-3"></div>
+
+<script type="module">
+
+import {
+  auth,
+  onAuthStateChanged,
+  signOut,
+  db,
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  serverTimestamp
+} from "./firebase.js";
+
+let data=[];
+
+/* AUTH GUARD */
+onAuthStateChanged(auth,(user)=>{
+  if(!user){
+    window.location.href="auth.html";
+  }else{
+    loadData();
+  }
+});
+
+/* LOGOUT */
+window.logout = async ()=>{
+  await signOut(auth);
+};
+
+/* ADD */
+window.addContact = async ()=>{
+  let phone = document.getElementById("phoneInput").value;
+
+  await addDoc(collection(db,"contacts"),{
+    phone,
+    status:"new",
+    createdAt: serverTimestamp()
+  });
+
+  loadData();
+};
+
+/* LOAD */
+async function loadData(){
+  const q = query(collection(db,"contacts"),orderBy("createdAt","desc"));
+  const snap = await getDocs(q);
+
+  data = snap.docs.map(doc=>doc.data());
+
+  render();
+}
+
+/* RENDER */
+function render(){
+  let html="";
+  data.forEach((d,i)=>{
+    html+=`
+    <div class="card-gradient mb-3">
+      <div class="card-inner">
+        <div>${d.phone}</div>
+      </div>
+    </div>`;
+  });
+  document.getElementById("list").innerHTML=html;
+}
+
+</script>
+
+</body>
+</html>
