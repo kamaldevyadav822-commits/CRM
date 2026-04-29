@@ -8,53 +8,86 @@
 <style>
 .glass{background:rgba(255,255,255,0.6);backdrop-filter:blur(20px);}
 *{transition:all 0.25s ease;}
+.shadow-soft{box-shadow:0 10px 30px rgba(0,0,0,0.08);}
+body{margin:0}
+
 .card-gradient{border-radius:16px;padding:1px;background:linear-gradient(135deg,#a855f7,#22c55e);}
-.card-inner{border-radius:15px;background:white;padding:16px;}
-.tab{padding:8px 12px;border-radius:12px;background:#eee;font-size:13px;}
-.tab.active{background:#3b82f6;color:#fff;}
+.card-inner{border-radius:15px;background:white;padding:14px;}
+
+.tab{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:12px;background:#ffffffb0;font-size:13px;min-width:110px;justify-content:center;}
+.tab.active{background:#3b82f6;color:white;}
+
+.search-wrap{position:relative;}
+.search-input{width:36px;opacity:0;padding:8px 30px 8px 34px;border-radius:999px;border:1px solid #ddd;}
+.search-wrap.active .search-input{width:200px;opacity:1;}
+
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;}
+.search-close{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;cursor:pointer;display:none;}
+.search-wrap.active .search-close{display:block;}
+
+.input-anim{max-height:0;overflow:hidden;opacity:0;}
+.input-anim.open{max-height:120px;opacity:1;}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) scale(0.9);background:#111;color:#fff;padding:10px 18px;border-radius:20px;opacity:0;}
+.toast.show{opacity:1;transform:translateX(-50%) scale(1);}
 </style>
 </head>
 
-<body class="bg-gray-100">
+<body class="bg-gray-100 font-sans">
 
-<div class="flex justify-between items-center p-3 glass">
-  <h1>CRM Pro</h1>
-  <button onclick="logout()" class="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
+<div class="flex justify-between items-center p-3 glass shadow-soft">
+  <h1 class="font-semibold text-lg">CRM Pro</h1>
+
+  <div class="flex items-center gap-2">
+    <div id="searchWrap" class="search-wrap">
+      <img src="https://cdn-icons-png.flaticon.com/512/10469/10469570.png" class="search-icon">
+      <input id="searchInput" class="search-input outline-none" placeholder="Search...">
+      <span id="searchClose" class="search-close">✕</span>
+    </div>
+
+    <button id="toggleBtn" onclick="toggleInput()" class="bg-blue-500 text-white px-4 py-2 rounded-xl">
+      + Add
+    </button>
+  </div>
 </div>
 
-<div class="flex gap-2 p-2">
-  <button class="tab active" data-tab="new">New</button>
-  <button class="tab" data-tab="called">Called</button>
-  <button class="tab" data-tab="not_answered">No Answer</button>
-  <button class="tab" data-tab="closed">Closed</button>
+<div id="inputBar" class="input-anim p-3 glass">
+  <div class="flex gap-2">
+    <input id="phoneInput" type="tel" inputmode="numeric" maxlength="10"
+      class="flex-1 p-3 rounded-xl border" placeholder="Enter phone number">
+    <button onclick="addContact()" class="bg-green-500 text-white px-4 rounded-xl">Add</button>
+  </div>
 </div>
 
-<div class="p-3">
-  <input id="phoneInput" placeholder="Enter phone"
-   class="w-full p-3 border rounded mb-2">
-  <button onclick="addContact()" class="bg-green-500 text-white px-4 py-2 rounded">
-    Add Contact
-  </button>
+<div id="tabs" class="flex gap-2 px-3 py-2 overflow-x-auto glass sticky top-0">
+  <button data-tab="new" class="tab active">New</button>
+  <button data-tab="called" class="tab">Called</button>
+  <button data-tab="not_answered" class="tab">No Answer</button>
+  <button data-tab="closed" class="tab">Closed</button>
 </div>
 
 <div id="list" class="p-3"></div>
+<div id="toast" class="toast">Contact added ✅</div>
 
 <script type="module">
 
 import {
   auth,
   onAuthStateChanged,
-  signOut,
   db,
   collection,
   addDoc,
   getDocs,
+  updateDoc,
+  doc,
   query,
   orderBy,
   serverTimestamp
 } from "./firebase.js";
 
 let data=[];
+let currentTab="new";
+let searchQuery="";
 
 /* AUTH GUARD */
 onAuthStateChanged(auth,(user)=>{
@@ -65,46 +98,127 @@ onAuthStateChanged(auth,(user)=>{
   }
 });
 
-/* LOGOUT */
-window.logout = async ()=>{
-  await signOut(auth);
+/* Toggle */
+window.toggleInput = ()=>{
+  inputBar.classList.toggle("open");
+  toggleBtn.innerText=inputBar.classList.contains("open")?"✕ Close":"+ Add";
+  if(inputBar.classList.contains("open")) setTimeout(()=>phoneInput.focus(),200);
 };
 
-/* ADD */
+/* Add */
 window.addContact = async ()=>{
-  let phone = document.getElementById("phoneInput").value;
+  let phone=phoneInput.value.replace(/\D/g,"").slice(0,10);
+  if(phone.length!==10)return alert("Invalid");
 
   await addDoc(collection(db,"contacts"),{
     phone,
     status:"new",
-    createdAt: serverTimestamp()
+    notes:"",
+    callCount:0,
+    createdAt:serverTimestamp()
   });
 
+  phoneInput.value="";
+  showToast();
   loadData();
 };
 
-/* LOAD */
+/* Load */
 async function loadData(){
-  const q = query(collection(db,"contacts"),orderBy("createdAt","desc"));
-  const snap = await getDocs(q);
-
-  data = snap.docs.map(doc=>doc.data());
-
+  const q=query(collection(db,"contacts"),orderBy("createdAt","desc"));
+  const snap=await getDocs(q);
+  data=snap.docs.map(d=>({id:d.id,...d.data()}));
   render();
 }
 
-/* RENDER */
+/* Update */
+async function updateField(id,field,value){
+  await updateDoc(doc(db,"contacts",id),{[field]:value});
+  loadData();
+}
+
+/* Search */
+searchInput.onfocus=()=>searchWrap.classList.add("active");
+searchInput.oninput=(e)=>{searchQuery=e.target.value.toLowerCase();render();};
+searchClose.onclick=()=>{
+  searchInput.value="";
+  searchQuery="";
+  searchWrap.classList.remove("active");
+  render();
+};
+
+/* Tabs */
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    currentTab=btn.dataset.tab;
+    btn.scrollIntoView({behavior:"smooth",inline:"center"});
+    render();
+  };
+});
+
+/* Render */
 function render(){
-  let html="";
-  data.forEach((d,i)=>{
-    html+=`
+  list.innerHTML="";
+  let filtered=data.filter(d=>d.status===currentTab);
+
+  if(searchQuery){
+    filtered=data.filter(d=>d.phone.includes(searchQuery));
+  }
+
+  filtered.forEach((d,i)=>{
+    list.innerHTML+=`
     <div class="card-gradient mb-3">
       <div class="card-inner">
-        <div>${d.phone}</div>
+
+        <div class="flex justify-between">
+          <span>#${i+1}</span>
+
+          <select onchange="updateField('${d.id}','status',this.value)">
+            <option ${d.status==="new"?"selected":""}>new</option>
+            <option ${d.status==="called"?"selected":""}>called</option>
+            <option ${d.status==="not_answered"?"selected":""}>not_answered</option>
+            <option ${d.status==="closed"?"selected":""}>closed</option>
+          </select>
+        </div>
+
+        <div class="text-center font-semibold">${d.phone}</div>
+
+        <textarea class="w-full p-2 border rounded-xl mt-2"
+          oninput="updateField('${d.id}','notes',this.value)">${d.notes||""}</textarea>
+
+        <div class="flex gap-2 mt-2">
+          <button onclick="call('${d.id}','${d.phone}')"
+            class="flex-1 bg-green-500 text-white py-2 rounded-xl">
+            Call (${d.callCount||0})
+          </button>
+
+          <button onclick="wa('${d.phone}')"
+            class="flex-1 bg-green-600 text-white py-2 rounded-xl">
+            WhatsApp
+          </button>
+        </div>
+
       </div>
     </div>`;
   });
-  document.getElementById("list").innerHTML=html;
+}
+
+/* Actions */
+window.call = async (id,phone)=>{
+  let obj=data.find(d=>d.id===id);
+  await updateField(id,"callCount",(obj.callCount||0)+1);
+  await updateField(id,"status","called");
+  window.open(`tel:${phone}`);
+};
+
+window.wa = (p)=>window.open(`https://wa.me/91${p}`);
+
+/* Toast */
+function showToast(){
+  toast.classList.add("show");
+  setTimeout(()=>toast.classList.remove("show"),2000);
 }
 
 </script>
