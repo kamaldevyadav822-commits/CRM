@@ -35,10 +35,12 @@ body{margin:0}
 
 <body class="bg-gray-100 font-sans">
 
+<!-- HEADER -->
 <div class="flex justify-between items-center p-3 glass shadow-soft">
   <h1 class="font-semibold text-lg">CRM Pro</h1>
 
   <div class="flex items-center gap-2">
+
     <div id="searchWrap" class="search-wrap">
       <img src="https://cdn-icons-png.flaticon.com/512/10469/10469570.png" class="search-icon">
       <input id="searchInput" class="search-input outline-none" placeholder="Search...">
@@ -48,9 +50,11 @@ body{margin:0}
     <button id="toggleBtn" onclick="toggleInput()" class="bg-blue-500 text-white px-4 py-2 rounded-xl">
       + Add
     </button>
+
   </div>
 </div>
 
+<!-- INPUT -->
 <div id="inputBar" class="input-anim p-3 glass">
   <div class="flex gap-2">
     <input id="phoneInput" type="tel" inputmode="numeric" maxlength="10"
@@ -59,6 +63,7 @@ body{margin:0}
   </div>
 </div>
 
+<!-- TABS -->
 <div id="tabs" class="flex gap-2 px-3 py-2 overflow-x-auto glass sticky top-0">
   <button data-tab="new" class="tab active">New</button>
   <button data-tab="called" class="tab">Called</button>
@@ -66,15 +71,19 @@ body{margin:0}
   <button data-tab="closed" class="tab">Closed</button>
 </div>
 
+<!-- LIST -->
 <div id="list" class="p-3"></div>
+
 <div id="toast" class="toast">Contact added ✅</div>
 
+<!-- 🔥 FIREBASE + APP LOGIC -->
 <script type="module">
 
+/* 🔥 FIREBASE IMPORT */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
 import {
-  auth,
-  onAuthStateChanged,
-  db,
+  getFirestore,
   collection,
   addDoc,
   getDocs,
@@ -83,13 +92,23 @@ import {
   query,
   orderBy,
   serverTimestamp
-} from "./firebase.js";
+} from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
 
-let data=[];
-let currentTab="new";
-let searchQuery="";
+/* 🔥 YOUR CONFIG */
+const firebaseConfig = {
+  apiKey: "AIzaSyBfg_CmR3fWXz7U7R35nhRNCC243CqBXEQ",
+  authDomain: "crm-69c8a.firebaseapp.com",
+  projectId: "crm-69c8a",
+  storageBucket: "crm-69c8a.firebasestorage.app",
+  messagingSenderId: "309785361435",
+  appId: "1:309785361435:web:45bb7e8f74708cef410cbe"
+};
 
-/* AUTH GUARD */
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+/* 🔐 AUTH CHECK */
 onAuthStateChanged(auth,(user)=>{
   if(!user){
     window.location.href="auth.html";
@@ -97,6 +116,10 @@ onAuthStateChanged(auth,(user)=>{
     loadData();
   }
 });
+
+let data=[];
+let currentTab="new";
+let searchQuery="";
 
 /* Toggle */
 window.toggleInput = ()=>{
@@ -112,6 +135,7 @@ window.addContact = async ()=>{
 
   await addDoc(collection(db,"contacts"),{
     phone,
+    name:"",
     status:"new",
     notes:"",
     callCount:0,
@@ -161,6 +185,7 @@ document.querySelectorAll(".tab").forEach(btn=>{
 /* Render */
 function render(){
   list.innerHTML="";
+
   let filtered=data.filter(d=>d.status===currentTab);
 
   if(searchQuery){
@@ -176,10 +201,10 @@ function render(){
           <span>#${i+1}</span>
 
           <select onchange="updateField('${d.id}','status',this.value)">
-            <option ${d.status==="new"?"selected":""}>new</option>
-            <option ${d.status==="called"?"selected":""}>called</option>
-            <option ${d.status==="not_answered"?"selected":""}>not_answered</option>
-            <option ${d.status==="closed"?"selected":""}>closed</option>
+            <option value="new" ${d.status==="new"?"selected":""}>New</option>
+            <option value="called" ${d.status==="called"?"selected":""}>Called</option>
+            <option value="not_answered" ${d.status==="not_answered"?"selected":""}>No Answer</option>
+            <option value="closed" ${d.status==="closed"?"selected":""}>Closed</option>
           </select>
         </div>
 
@@ -205,7 +230,7 @@ function render(){
   });
 }
 
-/* Actions */
+/* Call */
 window.call = async (id,phone)=>{
   let obj=data.find(d=>d.id===id);
   await updateField(id,"callCount",(obj.callCount||0)+1);
@@ -213,6 +238,7 @@ window.call = async (id,phone)=>{
   window.open(`tel:${phone}`);
 };
 
+/* WhatsApp */
 window.wa = (p)=>window.open(`https://wa.me/91${p}`);
 
 /* Toast */
