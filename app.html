@@ -105,6 +105,11 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+let data=[];
+let currentTab="new";
+let searchQuery="";
+
+/* AUTH */
 onAuthStateChanged(auth,(user)=>{
   if(!user){
     window.location.href="auth.html";
@@ -113,21 +118,20 @@ onAuthStateChanged(auth,(user)=>{
   }
 });
 
-let data=[];
-let currentTab="new";
-let searchQuery="";
+/* LOAD */
+async function loadData(){
+  const q=query(collection(db,"contacts"),orderBy("createdAt","desc"));
+  const snap=await getDocs(q);
+  data=snap.docs.map(d=>({id:d.id,...d.data()}));
+  render();
+}
 
-window.toggleInput = ()=>{
-  inputBar.classList.toggle("open");
-  toggleBtn.innerText=inputBar.classList.contains("open")?"✕ Close":"+ Add";
-  if(inputBar.classList.contains("open")) setTimeout(()=>phoneInput.focus(),200);
-};
-
+/* ADD */
 window.addContact = async ()=>{
   let phone=phoneInput.value.replace(/\D/g,"").slice(0,10);
   if(phone.length!==10)return alert("Invalid");
 
-  await addDoc(collection(db,"contacts"),{
+  const docRef = await addDoc(collection(db,"contacts"),{
     phone,
     name:"",
     status:"new",
@@ -136,23 +140,27 @@ window.addContact = async ()=>{
     createdAt:serverTimestamp()
   });
 
+  data.unshift({id:docRef.id,phone,name:"",status:"new",notes:"",callCount:0});
   phoneInput.value="";
   showToast();
-  loadData();
+  render();
 };
 
-async function loadData(){
-  const q=query(collection(db,"contacts"),orderBy("createdAt","desc"));
-  const snap=await getDocs(q);
-  data=snap.docs.map(d=>({id:d.id,...d.data()}));
-  render();
-}
+/* UPDATE FIXED */
+window.updateField = async function(id,field,value){
+  let obj=data.find(d=>d.id===id);
+  if(obj) obj[field]=value;
 
-async function updateField(id,field,value){
   await updateDoc(doc(db,"contacts",id),{[field]:value});
-  loadData();
-}
+};
 
+/* TOGGLE */
+window.toggleInput = ()=>{
+  inputBar.classList.toggle("open");
+  toggleBtn.innerText=inputBar.classList.contains("open")?"✕ Close":"+ Add";
+};
+
+/* SEARCH */
 searchInput.onfocus=()=>searchWrap.classList.add("active");
 searchInput.oninput=(e)=>{searchQuery=e.target.value.toLowerCase();render();};
 searchClose.onclick=()=>{
@@ -162,16 +170,36 @@ searchClose.onclick=()=>{
   render();
 };
 
+/* TABS */
 document.querySelectorAll(".tab").forEach(btn=>{
   btn.onclick=()=>{
     document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
     btn.classList.add("active");
     currentTab=btn.dataset.tab;
-    btn.scrollIntoView({behavior:"smooth",inline:"center"});
     render();
   };
 });
 
+/* CALL */
+window.call = async (id,phone)=>{
+  let obj=data.find(d=>d.id===id);
+  obj.callCount=(obj.callCount||0)+1;
+  obj.status="called";
+
+  render();
+
+  await updateDoc(doc(db,"contacts",id),{
+    callCount:obj.callCount,
+    status:"called"
+  });
+
+  window.open(`tel:${phone}`);
+};
+
+/* WA */
+window.wa = (p)=>window.open(`https://wa.me/91${p}`);
+
+/* RENDER */
 function render(){
   list.innerHTML="";
 
@@ -223,15 +251,7 @@ function render(){
   });
 }
 
-window.call = async (id,phone)=>{
-  let obj=data.find(d=>d.id===id);
-  await updateField(id,"callCount",(obj.callCount||0)+1);
-  await updateField(id,"status","called");
-  window.open(`tel:${phone}`);
-};
-
-window.wa = (p)=>window.open(`https://wa.me/91${p}`);
-
+/* TOAST */
 function showToast(){
   toast.classList.add("show");
   setTimeout(()=>toast.classList.remove("show"),2000);
