@@ -76,10 +76,8 @@ body{margin:0}
 
 <div id="toast" class="toast">Contact added ✅</div>
 
-<!-- 🔥 FIREBASE + APP LOGIC -->
 <script type="module">
 
-/* 🔥 FIREBASE IMPORT */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
 import {
@@ -94,7 +92,6 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
 
-/* 🔥 YOUR CONFIG */
 const firebaseConfig = {
   apiKey: "AIzaSyBfg_CmR3fWXz7U7R35nhRNCC243CqBXEQ",
   authDomain: "crm-69c8a.firebaseapp.com",
@@ -108,7 +105,6 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-/* 🔐 AUTH CHECK */
 onAuthStateChanged(auth,(user)=>{
   if(!user){
     window.location.href="auth.html";
@@ -121,14 +117,12 @@ let data=[];
 let currentTab="new";
 let searchQuery="";
 
-/* Toggle */
 window.toggleInput = ()=>{
   inputBar.classList.toggle("open");
   toggleBtn.innerText=inputBar.classList.contains("open")?"✕ Close":"+ Add";
   if(inputBar.classList.contains("open")) setTimeout(()=>phoneInput.focus(),200);
 };
 
-/* Add */
 window.addContact = async ()=>{
   let phone=phoneInput.value.replace(/\D/g,"").slice(0,10);
   if(phone.length!==10)return alert("Invalid");
@@ -147,7 +141,6 @@ window.addContact = async ()=>{
   loadData();
 };
 
-/* Load */
 async function loadData(){
   const q=query(collection(db,"contacts"),orderBy("createdAt","desc"));
   const snap=await getDocs(q);
@@ -155,13 +148,11 @@ async function loadData(){
   render();
 }
 
-/* Update */
 async function updateField(id,field,value){
   await updateDoc(doc(db,"contacts",id),{[field]:value});
   loadData();
 }
 
-/* Search */
 searchInput.onfocus=()=>searchWrap.classList.add("active");
 searchInput.oninput=(e)=>{searchQuery=e.target.value.toLowerCase();render();};
 searchClose.onclick=()=>{
@@ -171,7 +162,6 @@ searchClose.onclick=()=>{
   render();
 };
 
-/* Tabs */
 document.querySelectorAll(".tab").forEach(btn=>{
   btn.onclick=()=>{
     document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
@@ -182,7 +172,6 @@ document.querySelectorAll(".tab").forEach(btn=>{
   };
 });
 
-/* Render */
 function render(){
   list.innerHTML="";
 
@@ -208,7 +197,11 @@ function render(){
           </select>
         </div>
 
-        <div class="text-center font-semibold">${d.phone}</div>
+        <input value="${d.name||""}" placeholder="Enter Name"
+          oninput="updateField('${d.id}','name',this.value)"
+          class="w-full p-2 border rounded-xl mt-2"/>
+
+        <div class="text-center font-semibold mt-2">${d.phone}</div>
 
         <textarea class="w-full p-2 border rounded-xl mt-2"
           oninput="updateField('${d.id}','notes',this.value)">${d.notes||""}</textarea>
@@ -230,7 +223,6 @@ function render(){
   });
 }
 
-/* Call */
 window.call = async (id,phone)=>{
   let obj=data.find(d=>d.id===id);
   await updateField(id,"callCount",(obj.callCount||0)+1);
@@ -238,10 +230,8 @@ window.call = async (id,phone)=>{
   window.open(`tel:${phone}`);
 };
 
-/* WhatsApp */
 window.wa = (p)=>window.open(`https://wa.me/91${p}`);
 
-/* Toast */
 function showToast(){
   toast.classList.add("show");
   setTimeout(()=>toast.classList.remove("show"),2000);
